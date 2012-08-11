@@ -4,7 +4,8 @@ from math import degrees as deg, radians as rad
 from datetime import date,datetime,time  
   
 # this module is not provided here. See text.  
-from timezone import LocalTimezone  
+#will deal with timezones in timeparser.py
+#from timezone import LocalTimezone  
   
 class sun:  
  """  
