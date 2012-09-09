@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta, tzinfo, date, time
 import sunrise
 import re
+import numparser
 #include https://en.wikipedia.org/wiki/Number#Word_alternatives
 
 #set timezone...
@@ -25,36 +26,70 @@ def dpd(d,delta):
   #method to add timedelta to date
   return (datetime.combine(d, time())-delta).date()
 
-pointers = {
-  "from": ("rel","ref","+-","+"),
-  "before": ("rel","ref","-","+"),
-  "to": ("rel","ref","-","+"),
-  "until": ("rel","ref","-","+"),
-  "after": ("rel","ref","+","+"),
-  "in": ("ref","rel","+","+")
+worddictionary = {
+
+  "pointers" : {
+    "from": ("rel","ref","+-","+"),
+    "before": ("rel","ref","-","+"),
+    "to": ("rel","ref","-","+"),
+    "until": ("rel","ref","-","+"),
+    "after": ("rel","ref","+","+"),
+    "in": ("ref","rel","+","+")
+  }
+  ,
+  "dateTimes" : {
+    "now": (datetime.now(),datetime.now()),
+    "tonight": (datetime.combine(date.today(), getsuntime("sunset")), datetime.combine(date.today(), time(23,59,59)))
+  }
+  ,
+  "daytimes" : {
+    "afternoon": (getsuntime("solarnoon"),getsuntime("sunset")),
+    "noon": (time(12,0,0), time(12,0,0), getsuntime("solarnoon"), getsuntime("solarnoon")),
+    "midnight": (time(0,0,0), time(0,0,0)),
+    #dawn & dusk vary relative to sunrise/sunset depending on latitude
+    "dawn": (tpd(getsuntime("sunrise"), timedelta(seconds=-900)), getsuntime("sunrise")),
+    "dusk": (getsuntime("sunset"), tpd(getsuntime("sunset"), timedelta(seconds=900))),
+    "twilight": (tpd(getsuntime("sunrise"), timedelta(seconds=-900)), tpd(getsuntime("sunrise"), timedelta(seconds=-900)),
+      tpd(getsuntime("sunset"), timedelta(seconds=900)), tpd(getsuntime("sunset"), timedelta(seconds=900))),
+    "sunset": (getsuntime("sunset"), getsuntime("sunset")),
+    "sundown": (getsuntime("sunset"), getsuntime("sunset")),
+    "sunrise": (getsuntime("sunrise"), getsuntime("sunrise"))
+  }
+  ,
+  "dates" : {
+    "today": date.today(),
+    "tomorrow": dpd(date.today(), timedelta(24*60*60))
+  }
 }
 
-dateTimes = {
-  "now": (datetime.now(),datetime.now()),
-  "tonight": (datetime.combine(date.today(), getsuntime("sunset")), datetime.combine(date.today(), time(23,59,59)))
+pluralsuffixes = {
+  "s":"",
+  "es":"",
+  "ies":"y",
+  "ves":"f",
+  "i":"us"
 }
-times = {
-  "afternoon": (getsuntime("solarnoon"),getsuntime("sunset")),
-  "noon": (time(12,0,0), time(12,0,0), getsuntime("solarnoon"), getsuntime("solarnoon")),
-  "midnight": (time(0,0,0), time(0,0,0)),
-  #dawn & dusk vary relative to sunrise/sunset depending on latitude
-  "dawn": (tpd(getsuntime("sunrise"), timedelta(seconds=-900)), getsuntime("sunrise")),
-  "dusk": (getsuntime("sunset"), tpd(getsuntime("sunset"), timedelta(seconds=900))),
-  "twilight": (tpd(getsuntime("sunrise"), timedelta(seconds=-900)), tpd(getsuntime("sunrise"), timedelta(seconds=-900)),
-    tpd(getsuntime("sunset"), timedelta(seconds=900)), tpd(getsuntime("sunset"), timedelta(seconds=900))),
-  "sunset": (getsuntime("sunset"), getsuntime("sunset")),
-  "sundown": (getsuntime("sunset"), getsuntime("sunset")),
-  "sunrise": (getsuntime("sunrise"), getsuntime("sunrise"))
-}
-dates = {
-  "today": date.today(),
-  "tomorrow": dpd(date.today(), timedelta(24*60*60))
-}
+
+def dictcheck(word,subdict=daytimes):
+  """returns definition entry for singular word and plural boolean or None"""
+  #try singular:
+  for subdict in worddictionary:
+    try:
+      definition=worddictionary[subdict][word[:len(word)-len(suffix)]+pluralsuffixes[suffix]]
+      plural=False
+      return (definition, plural)
+    except KeyError:
+      pass
+  for suffix in pluralsuffixes:
+    if word[len(word)-len(suffix):]==suffix:
+      plural=True
+      for subdict in worddictionary:
+        try:
+          definition=worddictionary[subdict][word[:len(word)-len(suffix)]+pluralsuffixes[suffix]]
+          return (definition, plural)
+        except KeyError:
+          pass
+  return (None, None)
 
 def insertchar(original, ch, pos):
   """inserts char at pos in original"""
@@ -62,7 +97,7 @@ def insertchar(original, ch, pos):
 
 def parse(phrase):
   #convert all word numbers to number numbers
-  phrase=text2num(phrase)
+  phrase=numparser.text2num(phrase)
   
   #find all number numbers & surround with spaces
   regexp=re.compile("\d+")
@@ -155,4 +190,4 @@ def timeFind(index, words):
   pass
 
 if __name__ == "__main__":
-  parse("eleventy hundred thousand")
+  parse("in five sunsets")
