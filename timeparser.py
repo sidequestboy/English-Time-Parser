@@ -7,56 +7,79 @@ import re
 dateToday = date.today()
 #get location for sunset, sunrise, etc.
 #http://michelanders.blogspot.ca/2010/12/calulating-sunrise-and-sunset-in-python.html
-s = sunrise.sun(lat=49, long=3)
-sunriseTime=s.sunrise(when=datetime.now())
-sunsetTime=s.sunset(when=datetime.now())
-solarNoon=s.solarnoon(when=datetime.now())
 
-def timeplusdelta(t,delta):
+def getsuntime(keyword):
+  s = sunrise.sun(lat=49, long=3)
+  if keyword=="sunset":
+    time=s.sunset(when=datetime.now())
+  elif keyword=="sunrise":
+    time=s.sunrise(when=datetime.now())
+  elif keyword=="solarnoon":
+    time=s.solarnoon(when=datetime.now())
+  return time
+
+def tpd(t,delta):
   #method to add timedelta to time
   return (datetime.combine(date.today(), t)-delta).time()
+def dpd(d,delta):
+  #method to add timedelta to date
+  return (datetime.combine(d, time())-delta).date()
 
 pointers = {
-  "from": ("rel","ref","plusminus","plus"),
-  "before": ("rel","ref","minus","plus"),
-  "to": ("rel","ref","minus","plus"),
-  "until": ("rel","ref","minus","plus"),
-  "after": ("rel","ref","plus","plus"),
-  "in": ("ref","rel","plus","plus")
+  "from": ("rel","ref","+-","+"),
+  "before": ("rel","ref","-","+"),
+  "to": ("rel","ref","-","+"),
+  "until": ("rel","ref","-","+"),
+  "after": ("rel","ref","+","+"),
+  "in": ("ref","rel","+","+")
 }
-
 
 dateTimes = {
   "now": (datetime.now(),datetime.now()),
-  "tonight": (datetime.combine(date.today(), sunsetTime), datetime.combine(date.today(), time(23,59,59)))
+  "tonight": (datetime.combine(date.today(), getsuntime("sunset")), datetime.combine(date.today(), time(23,59,59)))
 }
 times = {
-  "afternoon": (solarNoon,sunsetTime),
-  "noon": (time(12,0,0), time(12,0,0), solarNoon, solarNoon),
+  "afternoon": (getsuntime("solarnoon"),getsuntime("sunset")),
+  "noon": (time(12,0,0), time(12,0,0), getsuntime("solarnoon"), getsuntime("solarnoon")),
   "midnight": (time(0,0,0), time(0,0,0)),
   #dawn & dusk vary relative to sunrise/sunset depending on latitude
-  "dawn": (timeplusdelta(sunriseTime, timedelta(seconds=-900)), sunriseTime),
-  "dusk": (sunsetTime, timeplusdelta(sunsetTime, timedelta(seconds=900))),
-  "twilight": (timeplusdelta(sunriseTime, timedelta(seconds=-900)), timeplusdelta(sunriseTime, timedelta(seconds=-900)),
-    timeplusdelta(sunsetTime, timedelta(seconds=900)), timeplusdelta(sunsetTime, timedelta(seconds=900))),
-  "sunset": (sunsetTime, sunsetTime),
-  "sundown": (sunsetTime, sunsetTime),
-  "sunrise": (sunriseTime, sunriseTime)
+  "dawn": (tpd(getsuntime("sunrise"), timedelta(seconds=-900)), getsuntime("sunrise")),
+  "dusk": (getsuntime("sunset"), tpd(getsuntime("sunset"), timedelta(seconds=900))),
+  "twilight": (tpd(getsuntime("sunrise"), timedelta(seconds=-900)), tpd(getsuntime("sunrise"), timedelta(seconds=-900)),
+    tpd(getsuntime("sunset"), timedelta(seconds=900)), tpd(getsuntime("sunset"), timedelta(seconds=900))),
+  "sunset": (getsuntime("sunset"), getsuntime("sunset")),
+  "sundown": (getsuntime("sunset"), getsuntime("sunset")),
+  "sunrise": (getsuntime("sunrise"), getsuntime("sunrise"))
 }
 dates = {
-  "today": datetime.now(),
-  "tomorrow": datetime.now()+timedelta(1)
+  "today": date.today(),
+  "tomorrow": dpd(date.today(), timedelta(24*60*60))
 }
 
-
+def insertchar(original, ch, pos):
+  """inserts char at pos in original"""
+  return original[:pos] + ch + original[pos:]
 
 def parse(phrase):
-  wlist=[]
-  words = phrase.split()
-  #find all numbers
-  wlist=text2num(phrase)
+  #convert all word numbers to number numbers
+  phrase=text2num(phrase)
+  
+  #find all number numbers & surround with spaces
+  regexp=re.compile("\d+")
+  fi=regexp.finditer(phrase)
+  i=0
+  for f in fi:
+    if f.start()!=0:
+      phrase=insertchar(phrase," ",f.start()+i)
+      i+=1
+    if f.end()!=len(phrase):
+      phrase=insertchar(phrase," ",f.end()+i)
+      i+=1
+  wlist = phrase.split()
+  #convert to ints
+  
   print wlist
-  """for index in range(len(words)):
+  """for index in range(len(wlist)):
     #find all times
     wlist+=text2num(word)
   for index in range(len(wlist)):
@@ -128,57 +151,8 @@ def strnum2int(textnum):
       pass
   return textnum
 
-#stolen from http://stackoverflow.com/a/493788/1402511
-def text2num(textnum, numwords={}):
-    if not numwords:
-      units = [
-        "zero", "one", "two", "three", "four", "five", "six", "seven", "eight",
-        "nine", "ten", "eleven", "twelve", "thirteen", "fourteen", "fifteen",
-        "sixteen", "seventeen", "eighteen", "nineteen",
-      ]
-
-      tens = ["", "", "twenty", "thirty", "forty", "fifty", "sixty", "seventy", "eighty", "ninety"]
-
-      scales = [
-        "hundred", "thousand", "million", "billion", "trillion", "quadrillion", 
-        "quintillion", "sexillion", "septillion", "octillion", "nonillion", "decillion",
-        "undecillion", "duodecillion", "tredecillion", "quattuordecillion", "quindecillion", 
-        "sexdecillion", "septdecillion", "octodecillion", "novemdecillion", "vigintillion", 
-        "unvigintillion", "duovigintillion", "trevigintillion"]
-
-      numwords["and"] = (-1, -1)
-      numwords["o"] = (0, 0) #same as "zero"
-      numwords["o'"] = (0, 0)
-      numwords["a"] = (0, 1) #same as "one"
-      for idx, word in enumerate(units):    numwords[word] = (0 if (idx<10) else 1, idx)
-      for idx, word in enumerate(tens):     numwords[word] = (1, idx * 10)
-      for idx, word in enumerate(scales):   numwords[word] = (idx * 3 or 2, 10 ** (idx * 3 or 2))
-
-    prevscale = 0
-    result = 0
-    climb=1
-    sclimb=""
-    textnum=textnum.replace("-"," ") #treat "-" as " "
-    for word in textnum.split():
-        if word not in numwords:
-          return result + climb
-        scale, num = numwords[word]
-        if scale<0: #filter "and"
-          scale=prevscale
-        elif (prevscale == 0 or 1) and (scale == 0 or 1): #one ten = 110
-          climb = int(str(sclimb) + str(num))
-          sclimb=str(climb)
-        elif prevscale > scale:
-          result += climb
-          climb = num
-
-        elif prevscale <= scale:
-          climb = climb * num
-        prevscale=scale
-    return result + climb
-
 def timeFind(index, words):
   pass
 
 if __name__ == "__main__":
-  parse("one-twenty")
+  parse("eleventy hundred thousand")
