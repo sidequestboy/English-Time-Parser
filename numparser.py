@@ -147,7 +147,8 @@ def text2num(textnum, numwords={}, fractions={}):
       else: phrase=phrase+" "+str(result)
     print phrase
     return phrase
-
+"""
 if __name__=="__main__":
   text2num("i will be ten in twenty minutes four hundred")
+ """
  
